@@ -153,48 +153,46 @@ navLinks.forEach(link => {
 });
 
 async function handleSearch() {
-    const query = searchInput.value.trim();
-    if (!query) {
-        mainContent.style.display = 'block';
-        searchResults.style.display = 'none';
-        return;
+  const query = searchInput.value.trim();
+  if (!query) {
+    mainContent.style.display = 'block';
+    searchResults.style.display = 'none';
+    return;
+  }
+
+  mainContent.style.display = 'none';
+  searchResults.style.display = 'block';
+  searchGrid.innerHTML = '';
+  loader.style.display = 'flex';
+
+  try {
+    // Call your own API endpoint (relative path works on Vercel)
+    const response = await fetch(`/api/search?q=${encodeURIComponent(query)}`);
+    if (!response.ok) throw new Error('API error');
+    const data = await response.json();
+    const movies = data.results;
+
+    loader.style.display = 'none';
+
+    if (movies.length === 0) {
+      searchGrid.innerHTML = '<p style="text-align:center; ...">No results found.</p>';
+      return;
     }
 
-    mainContent.style.display = 'none';
-    searchResults.style.display = 'block';
-    searchGrid.innerHTML = '';
-    loader.style.display = 'flex';
+    const formattedMovies = movies.map(movie => ({
+      id: movie.id,
+      title: movie.title,
+      image: movie.poster_path ? `https://image.tmdb.org/t/p/w300${movie.poster_path}` : '',
+      releaseDate: movie.release_date,
+      rating: movie.vote_average
+    }));
 
-    try {
-        const TMDB_API_KEY = 'cd0567a2102d35281755843b49c18308'; // your actual key
-        const tmdbUrl = `https://api.themoviedb.org/3/search/movie?api_key=${TMDB_API_KEY}&query=${encodeURIComponent(query)}`;
-
-        // Use corsproxy.io instead
-        const response = await fetch(`https://corsproxy.io/?${encodeURIComponent(tmdbUrl)}`);
-        const data = await response.json();
-
-        const movies = data.results;
-        loader.style.display = 'none';
-
-        if (movies.length === 0) {
-            searchGrid.innerHTML = '<p style="text-align:center; grid-column: 1/-1; color: var(--text-muted); font-size: 1.2rem;">No results found.</p>';
-            return;
-        }
-
-        const formattedMovies = movies.map(movie => ({
-            id: movie.id,
-            title: movie.title,
-            image: movie.poster_path ? `https://image.tmdb.org/t/p/w300${movie.poster_path}` : '',
-            releaseDate: movie.release_date,
-            rating: movie.vote_average
-        }));
-
-        renderSearchGrid(formattedMovies);
-    } catch (err) {
-        loader.style.display = 'none';
-        searchGrid.innerHTML = '<p style="text-align:center; grid-column: 1/-1; color: var(--netflix-red);">Connection error. Please try again.</p>';
-        console.error(err);
-    }
+    renderSearchGrid(formattedMovies);
+  } catch (err) {
+    loader.style.display = 'none';
+    searchGrid.innerHTML = '<p style="text-align:center; color: var(--netflix-red);">Connection error. Please try again.</p>';
+    console.error(err);
+  }
 }
 
 function renderSearchGrid(movies) {
