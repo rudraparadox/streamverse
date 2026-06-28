@@ -80,10 +80,10 @@ function init() {
 // Helper to Proxy Images for Indian ISPs
 function getProxiedImage(url) {
     if (!url) return 'https://via.placeholder.com/300x450?text=No+Poster';
-    
+
     // OPTIMIZATION: Convert massive 4K "original" posters to tiny "w300" thumbnails for instant loading
     url = url.replace('/original/', '/w300/');
-    
+
     if (url.includes('image.tmdb.org')) {
         return url.replace('https://image.tmdb.org/', 'https://wsrv.nl/?url=image.tmdb.org/');
     }
@@ -128,10 +128,10 @@ navLinks.forEach(link => {
         e.preventDefault();
         navLinks.forEach(l => l.classList.remove('active'));
         e.target.classList.add('active');
-        
+
         const category = e.target.innerText;
         const rowsContainer = document.getElementById('rowsContainer');
-        
+
         // Simple filtering simulation
         if (category === 'TV Shows') {
             document.getElementById('trendingRow').parentElement.parentElement.style.display = 'none';
@@ -166,28 +166,34 @@ async function handleSearch() {
     loader.style.display = 'flex';
 
     try {
-        const q = encodeURIComponent(query);
-        let response;
-        try {
-            response = await fetch(`https://rudragamerz-movies-api.hf.space/meta/tmdb/${q}`);
-        } catch(err) {
-            response = await fetch(`https://corsproxy.io/?${encodeURIComponent('https://rudragamerz-movies-api.hf.space/meta/tmdb/' + q)}`);
-        }
-        
+        const TMDB_API_KEY = 'cd0567a2102d35281755843b49c18308'; // your actual key
+        const tmdbUrl = `https://api.themoviedb.org/3/search/movie?api_key=${TMDB_API_KEY}&query=${encodeURIComponent(query)}`;
+
+        // Use corsproxy.io instead
+        const response = await fetch(`https://corsproxy.io/?${encodeURIComponent(tmdbUrl)}`);
         const data = await response.json();
-        const movies = data.results.filter(item => item.type === 'Movie');
-        
+
+        const movies = data.results;
         loader.style.display = 'none';
-        
+
         if (movies.length === 0) {
             searchGrid.innerHTML = '<p style="text-align:center; grid-column: 1/-1; color: var(--text-muted); font-size: 1.2rem;">No results found.</p>';
             return;
         }
 
-        renderSearchGrid(movies);
+        const formattedMovies = movies.map(movie => ({
+            id: movie.id,
+            title: movie.title,
+            image: movie.poster_path ? `https://image.tmdb.org/t/p/w300${movie.poster_path}` : '',
+            releaseDate: movie.release_date,
+            rating: movie.vote_average
+        }));
+
+        renderSearchGrid(formattedMovies);
     } catch (err) {
         loader.style.display = 'none';
         searchGrid.innerHTML = '<p style="text-align:center; grid-column: 1/-1; color: var(--netflix-red);">Connection error. Please try again.</p>';
+        console.error(err);
     }
 }
 
@@ -195,32 +201,32 @@ function renderSearchGrid(movies) {
     searchGrid.innerHTML = '';
     movies.forEach(movie => {
         const imgUrl = getProxiedImage(movie.image);
-        
+
         const wrapper = document.createElement('div');
         wrapper.className = 'grid-item';
-        
+
         const card = document.createElement('img');
         card.className = 'grid-poster';
         card.loading = 'lazy'; // OPTIMIZATION: Lazy load images
         card.src = imgUrl;
         card.alt = movie.title;
         card.onerror = function() { this.src='https://via.placeholder.com/300x450?text=No+Poster'; };
-        
+
         wrapper.appendChild(card);
-        
+
         // Smart detection for Unreleased/Upcoming movies
         const currentYear = new Date().getFullYear();
         const releaseYear = movie.releaseDate ? parseInt(movie.releaseDate.substring(0, 4)) : 9999;
         // If the release year is in the future, OR if it's this year but has a 0 rating (nobody has watched/rated it yet)
         const isUpcoming = (releaseYear > currentYear) || (releaseYear >= currentYear && movie.rating === 0);
-        
+
         if (isUpcoming) {
             const label = document.createElement('div');
             label.className = 'upcoming-label';
             label.textContent = 'Upcoming';
             wrapper.appendChild(label);
         }
-        
+
         wrapper.onclick = () => {
             if (isUpcoming) {
                 alert(`"${movie.title}" is an UPCOMING movie that has not been released yet.\n\nThere are no streaming sources available!`);
@@ -228,7 +234,7 @@ function renderSearchGrid(movies) {
                 openPlayer(movie.id, movie.title);
             }
         };
-        
+
         searchGrid.appendChild(wrapper);
     });
 }
@@ -245,10 +251,10 @@ document.getElementById('serverSelect').addEventListener('change', (e) => {
 function openPlayer(tmdbId, title) {
     currentPlayingId = tmdbId;
     currentSearchTitle = title;
-    
+
     const server = document.getElementById('serverSelect').value;
     const container = document.querySelector('.video-container');
-    
+
     let iframeSrc = '';
     if (server === 'autoembed') {
         iframeSrc = `https://autoembed.co/movie/tmdb/${tmdbId}`;
@@ -261,16 +267,16 @@ function openPlayer(tmdbId, title) {
     } else if (server === 'vidsrc') {
         iframeSrc = `https://vidsrc.me/embed/movie?tmdb=${tmdbId}`;
     }
-    
+
     // Removed the sandbox attribute. SmashyStream requires a fully permissive iframe to load its video blobs and cross-origin scripts!
     container.innerHTML = `<iframe src="${iframeSrc}" width="100%" height="100%" frameborder="0" scrolling="no" allowfullscreen="true" webkitallowfullscreen="true" mozallowfullscreen="true" allow="autoplay; fullscreen"></iframe>`;
-    
+
     // Fallback button opens current server in a new tab
     const fullscreenBtn = document.getElementById('externalFullscreenBtn');
     if (fullscreenBtn) {
         fullscreenBtn.onclick = () => window.open(iframeSrc, '_blank');
     }
-    
+
     playerModal.classList.add('active');
     document.body.style.overflow = 'hidden';
 }
@@ -278,7 +284,7 @@ function openPlayer(tmdbId, title) {
 function closePlayer() {
     playerModal.classList.remove('active');
     document.body.style.overflow = '';
-    
+
     setTimeout(() => {
         // Destroy iframe to stop audio instantly
         document.querySelector('.video-container').innerHTML = '';
